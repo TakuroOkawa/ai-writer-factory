@@ -8,6 +8,9 @@ tmp/
 *.tmp
 *_done.txt
 
+# Claude CLIメタ情報
+.claude/
+
 # OS固有
 .DS_Store
 Thumbs.db
@@ -17,4 +20,4 @@ Thumbs.db
 *.swo
 *~
 .vscode/
-.idea/ 
+.idea/
