@@ -83,9 +83,22 @@ echo "  cmo セッション:"
 echo "    Pane 0: CMO (Opus最新版)"
 echo ""
 
+# 監視システムの起動
+log_info "🔍 監視システムを起動します..."
+if [ -f "./watchdog.sh" ]; then
+    chmod +x ./watchdog.sh
+    tmux new-session -d -s watchdog -c "$(pwd)" "./watchdog.sh"
+    log_success "✅ 監視システムが起動しました"
+else
+    echo "⚠️  watchdog.sh が見つかりません"
+fi
+
+echo ""
+
 log_success "🎉 環境構築完了！以下のコマンドで作業を開始できます："
 echo ""
 echo "📌 セッションに入る:"
 echo "  tmux attach -t cmo           # CMO"
 echo "  tmux attach -t article_team  # director + writers"
+echo "  tmux attach -t watchdog      # 監視システム"
 echo ""
