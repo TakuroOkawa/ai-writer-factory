@@ -104,6 +104,18 @@ echo "4. WordPressへの投稿"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+# 監視システムの停止
+if tmux has-session -t watchdog 2>/dev/null; then
+    echo "🛑 監視システムを停止します..."
+    tmux send-keys -t watchdog C-c
+    sleep 1
+    tmux kill-session -t watchdog 2>/dev/null
+    echo "✅ 監視システムを停止しました"
+fi
+
+# 完了フラグを作成
+touch ./tmp/project_completed.flag
+
 # ログファイルにも保存
 mkdir -p ./logs/reports
 echo "[上記の内容]" > ./logs/reports/completion_$(date +%Y%m%d_%H%M%S).txt

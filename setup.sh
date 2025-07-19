@@ -25,6 +25,7 @@ tmux kill-session -t cmo 2>/dev/null || true
 
 mkdir -p ./tmp
 rm -f ./tmp/writer*_done.txt 2>/dev/null || true
+rm -f ./tmp/project_completed.flag 2>/dev/null || true
 
 log_success "✅ 既存セッションと完了ファイルを削除しました"
 

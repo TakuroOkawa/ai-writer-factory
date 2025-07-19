@@ -23,6 +23,13 @@ log_watchdog() {
 
 # アクティビティをチェック
 check_activity() {
+    # プロジェクト完了フラグがあれば終了
+    if [ -f "./tmp/project_completed.flag" ]; then
+        log_watchdog "📢 プロジェクト完了を検知。監視を終了します。"
+        echo "✅ プロジェクトが完了したため、監視システムを終了します。"
+        exit 0
+    fi
+    
    CURRENT_TIME=$(date +%s)
    
    # 起動後の猶予期間中はOKとする
