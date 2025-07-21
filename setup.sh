@@ -6,10 +6,10 @@ set -e
 
 # ログ関数
 log_info() {
-    echo -e "\033[1;32m[情報]\033[0m $1"
+   echo -e "\033[1;32m[情報]\033[0m $1"
 }
 log_success() {
-    echo -e "\033[1;34m[成功]\033[0m $1"
+   echo -e "\033[1;34m[成功]\033[0m $1"
 }
 
 echo ""
@@ -32,28 +32,31 @@ log_success "✅ 既存セッションと完了ファイルを削除しました
 # セッション1: director + writer1〜3
 log_info "🧩 article_team セッションを構築中..."
 tmux new-session -d -s article_team -n "team" -c "$(pwd)"
-tmux split-window -h -t article_team
-tmux select-pane -t article_team:0.0
-tmux split-window -v
-tmux select-pane -t article_team:0.1
-tmux split-window -v
+
+# 2x2の均等な4分割を作成
+tmux split-window -h -t article_team:0.0 -p 50  # 左右に50%で分割
+tmux split-window -v -t article_team:0.0 -p 50  # 左側を上下に50%で分割
+tmux split-window -v -t article_team:0.1 -p 50  # 右側を上下に50%で分割
+
+# レイアウトを整える（念のため）
+tmux select-layout -t article_team tiled
 
 AGENT_NAMES=("director" "writer1" "writer2" "writer3")
 
 for i in {0..3}; do
-    tmux select-pane -t article_team:0.$i -T "${AGENT_NAMES[$i]}"
-    tmux send-keys -t article_team:0.$i "cd $(pwd)" C-m
-    tmux send-keys -t article_team:0.$i "export PS1='(\[\033[1;36m\]${AGENT_NAMES[$i]}\[\033[0m\]) \w \$ '" C-m
-    tmux send-keys -t article_team:0.$i "echo '=== ${AGENT_NAMES[$i]} セッション開始 ==='" C-m
-    
-    # Directorはopus、Writersはsonnet
-    if [ $i -eq 0 ]; then
-        # Director (opus)
-        tmux send-keys -t article_team:0.$i "claude --model opus --dangerously-skip-permissions" C-m
-    else
-        # Writers (sonnet)
-        tmux send-keys -t article_team:0.$i "claude --model sonnet --dangerously-skip-permissions" C-m
-    fi
+   tmux select-pane -t article_team:0.$i -T "${AGENT_NAMES[$i]}"
+   tmux send-keys -t article_team:0.$i "cd $(pwd)" C-m
+   tmux send-keys -t article_team:0.$i "export PS1='(\[\033[1;36m\]${AGENT_NAMES[$i]}\[\033[0m\]) \w \$ '" C-m
+   tmux send-keys -t article_team:0.$i "echo '=== ${AGENT_NAMES[$i]} セッション開始 ==='" C-m
+   
+   # Directorはopus、Writersはsonnet
+   if [ $i -eq 0 ]; then
+       # Director (opus)
+       tmux send-keys -t article_team:0.$i "claude --model opus --dangerously-skip-permissions" C-m
+   else
+       # Writers (sonnet)
+       tmux send-keys -t article_team:0.$i "claude --model sonnet --dangerously-skip-permissions" C-m
+   fi
 done
 
 log_success "✅ director + writer セッション構築完了"
@@ -87,11 +90,11 @@ echo ""
 # 監視システムの起動
 log_info "🔍 監視システムを起動します..."
 if [ -f "./watchdog.sh" ]; then
-    chmod +x ./watchdog.sh
-    tmux new-session -d -s watchdog -c "$(pwd)" "./watchdog.sh"
-    log_success "✅ 監視システムが起動しました"
+   chmod +x ./watchdog.sh
+   tmux new-session -d -s watchdog -c "$(pwd)" "./watchdog.sh"
+   log_success "✅ 監視システムが起動しました"
 else
-    echo "⚠️  watchdog.sh が見つかりません"
+   echo "⚠️  watchdog.sh が見つかりません"
 fi
 
 echo ""
