@@ -44,26 +44,36 @@ check_activity() {
        return 0
    fi
    
-   # send_log.txtの最終更新時刻を確認
-   if [[ "$OSTYPE" == "darwin"* ]]; then
-       # macOS
-       LAST_LOG_UPDATE=$(stat -f "%m" "./logs/send_log.txt" 2>/dev/null)
+   # ステータス管理システムを使用して停滞チェック
+   if [ -f "./status-manager.sh" ]; then
+       if ! ./status-manager.sh check >/dev/null 2>&1; then
+           # 停滞が検出された場合
+           return 1
+       fi
    else
-       # Linux
-       LAST_LOG_UPDATE=$(stat -c "%Y" "./logs/send_log.txt" 2>/dev/null)
+       # 従来の方法（後方互換性のため）
+       # send_log.txtの最終更新時刻を確認
+       if [[ "$OSTYPE" == "darwin"* ]]; then
+           # macOS
+           LAST_LOG_UPDATE=$(stat -f "%m" "./logs/send_log.txt" 2>/dev/null)
+       else
+           # Linux
+           LAST_LOG_UPDATE=$(stat -c "%Y" "./logs/send_log.txt" 2>/dev/null)
+       fi
+       
+       TIME_DIFF=$((CURRENT_TIME - LAST_LOG_UPDATE))
+       
+       if [ $TIME_DIFF -gt $TIMEOUT_THRESHOLD ]; then
+           return 1  # タイムアウト
+       fi
+       
+       # 作業中ファイルの存在チェック
+       WRITERS_WORKING=$(ls ./tmp/writer*_writing.txt 2>/dev/null | wc -l)
+       WRITERS_DONE=$(ls ./tmp/writer*_done.txt 2>/dev/null | wc -l)
+       
+       echo "WORKING=$WRITERS_WORKING,DONE=$WRITERS_DONE,LAST_UPDATE=$TIME_DIFF" > "$STATE_FILE"
    fi
    
-   TIME_DIFF=$((CURRENT_TIME - LAST_LOG_UPDATE))
-   
-   if [ $TIME_DIFF -gt $TIMEOUT_THRESHOLD ]; then
-       return 1  # タイムアウト
-   fi
-   
-   # 作業中ファイルの存在チェック
-   WRITERS_WORKING=$(ls ./tmp/writer*_writing.txt 2>/dev/null | wc -l)
-   WRITERS_DONE=$(ls ./tmp/writer*_done.txt 2>/dev/null | wc -l)
-   
-   echo "WORKING=$WRITERS_WORKING,DONE=$WRITERS_DONE,LAST_UPDATE=$TIME_DIFF" > "$STATE_FILE"
    return 0
 }
 
@@ -72,18 +82,38 @@ handle_stall() {
    log_watchdog "⚠️ システム停滞を検出！自動復旧を試みます..."
    
    # 1. 現在の状態を確認
-   CURRENT_STATE=$(cat "$STATE_FILE" 2>/dev/null)
-   log_watchdog "現在の状態: $CURRENT_STATE"
+   if [ -f "./status-manager.sh" ]; then
+       CURRENT_STATUS=$(./status-manager.sh show 2>/dev/null)
+       log_watchdog "現在のステータス: $CURRENT_STATUS"
+   else
+       CURRENT_STATE=$(cat "$STATE_FILE" 2>/dev/null)
+       log_watchdog "現在の状態: $CURRENT_STATE"
+   fi
    
-   # 2. 進行状況を確認
-   WRITERS_DONE=$(ls ./tmp/writer*_done.txt 2>/dev/null | wc -l)
-   
-   if [ $WRITERS_DONE -eq 0 ]; then
-       # まだ誰も完了していない → Writerに催促
-       log_watchdog "記事が1つも完成していません。Writerに催促します。"
+   # 2. 進行状況を確認（新しいステータス管理システムを使用）
+   if [ -f "./status-manager.sh" ]; then
+       # 新しいステータス管理システムを使用
+       WRITERS_DONE=0
+       WRITERS_COMPLETED=0
+       WRITERS_CHECKING=0
        
-       for i in 1 2 3; do
-           ./agent-send.sh writer$i "【緊急】進捗確認
+       for writer in writer1 writer2 writer3; do
+           if [ -f "./tmp/${writer}_status.txt" ]; then
+               status=$(cat "./tmp/${writer}_status.txt")
+               case $status in
+                   "done") WRITERS_DONE=$((WRITERS_DONE + 1)) ;;
+                   "completed") WRITERS_COMPLETED=$((WRITERS_COMPLETED + 1)) ;;
+                   "checking") WRITERS_CHECKING=$((WRITERS_CHECKING + 1)) ;;
+               esac
+           fi
+       done
+       
+       if [ $WRITERS_DONE -eq 0 ] && [ $WRITERS_COMPLETED -eq 0 ]; then
+           # まだ誰も完了していない → Writerに催促
+           log_watchdog "記事が1つも完成していません。Writerに催促します。"
+           
+           for i in 1 2 3; do
+               ./agent-send.sh writer$i "【緊急】進捗確認
 
 現在の執筆状況を30秒以内に報告してください。
 もし行き詰まっている場合は、以下を実行してください：
@@ -93,14 +123,14 @@ handle_stall() {
 3. 作業を継続
 
 30秒以内に応答がない場合は、作業を中断していると判断します。" 2>/dev/null
-           sleep 2
-       done
-       
-   elif [ $WRITERS_DONE -lt 3 ]; then
-       # 一部完了 → Directorに確認を促す
-       log_watchdog "一部の記事が完成。Directorに品質チェックを促します。"
-       
-       ./agent-send.sh director "【システム通知】品質チェック遅延
+               sleep 2
+           done
+           
+       elif [ $WRITERS_COMPLETED -gt 0 ]; then
+           # 完了待ちの記事がある → Directorに確認を促す
+           log_watchdog "完了した記事があります。Directorに品質チェックを促します。"
+           
+           ./agent-send.sh director "【システム通知】品質チェック遅延
 
 完了した記事の品質チェックが滞っているようです。
 以下を確認してください：
@@ -113,12 +143,12 @@ handle_stall() {
 - 完了記事があれば品質チェック実施
 - 問題があればWriterにフィードバック
 - すべて完了していればCMOに報告" 2>/dev/null
-       
-   else
-       # 全部完了 → CMOに最終報告を促す
-       log_watchdog "すべての記事が完成。CMOに最終報告を促します。"
-       
-       ./agent-send.sh cmo "【システム通知】記事制作完了の可能性
+           
+       elif [ $WRITERS_DONE -eq 3 ]; then
+           # 全部完了 → CMOに最終報告を促す
+           log_watchdog "すべての記事が完成。CMOに最終報告を促します。"
+           
+           ./agent-send.sh cmo "【システム通知】記事制作完了の可能性
 
 すべてのWriterが作業を完了したようです。
 Directorからの最終報告を待っているか、
@@ -129,6 +159,63 @@ Directorからの最終報告を待っているか、
 2. 人間への最終報告は実施しましたか？
 
 もし完了しているなら、最終報告を実行してください。" 2>/dev/null
+       fi
+   else
+       # 従来の方法（後方互換性のため）
+       WRITERS_DONE=$(ls ./tmp/writer*_done.txt 2>/dev/null | wc -l)
+       
+       if [ $WRITERS_DONE -eq 0 ]; then
+           # まだ誰も完了していない → Writerに催促
+           log_watchdog "記事が1つも完成していません。Writerに催促します。"
+           
+           for i in 1 2 3; do
+               ./agent-send.sh writer$i "【緊急】進捗確認
+
+現在の執筆状況を30秒以内に報告してください。
+もし行き詰まっている場合は、以下を実行してください：
+
+1. 現在書いている部分を一旦保存
+2. Directorに相談
+3. 作業を継続
+
+30秒以内に応答がない場合は、作業を中断していると判断します。" 2>/dev/null
+               sleep 2
+           done
+           
+       elif [ $WRITERS_DONE -lt 3 ]; then
+           # 一部完了 → Directorに確認を促す
+           log_watchdog "一部の記事が完成。Directorに品質チェックを促します。"
+           
+           ./agent-send.sh director "【システム通知】品質チェック遅延
+
+完了した記事の品質チェックが滞っているようです。
+以下を確認してください：
+
+1. Writerからの完了報告を見逃していないか
+2. 品質チェックで問題があったか
+3. CMOへの報告が必要か
+
+すぐに以下のアクションを取ってください：
+- 完了記事があれば品質チェック実施
+- 問題があればWriterにフィードバック
+- すべて完了していればCMOに報告" 2>/dev/null
+           
+       else
+           # 全部完了 → CMOに最終報告を促す
+           log_watchdog "すべての記事が完成。CMOに最終報告を促します。"
+           
+           ./agent-send.sh cmo "【システム通知】記事制作完了の可能性
+
+すべてのWriterが作業を完了したようです。
+Directorからの最終報告を待っているか、
+すでに完了している可能性があります。
+
+以下を確認してください：
+1. Directorから完了報告は来ていますか？
+2. 人間への最終報告は実施しましたか？
+
+もし完了しているなら、最終報告を実行してください。" 2>/dev/null
+       fi
    fi
    
    # 3. 30秒待って反応を確認

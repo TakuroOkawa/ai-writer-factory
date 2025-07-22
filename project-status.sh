@@ -22,26 +22,31 @@ if [ -f "./logs/send_log.txt" ]; then
     echo "⏰ 最終活動: $LAST_ACTIVITY"
 fi
 
-echo ""
-echo "============================="
-echo "📝 記事執筆ステータス一覧"
-echo "============================="
-printf "%-10s | %-8s\n" "ライター" "ステータス"
-echo "-----------------------------"
+# ステータス管理システムがある場合はそれを使用
+if [ -f "./status-manager.sh" ]; then
+    ./status-manager.sh show
+else
+    echo ""
+    echo "============================="
+    echo "📝 記事執筆ステータス一覧"
+    echo "============================="
+    printf "%-10s | %-8s\n" "ライター" "ステータス"
+    echo "-----------------------------"
 
-WRITERS=("writer1" "writer2" "writer3")
-for writer in "${WRITERS[@]}"; do
-    if [[ -f "./tmp/${writer}_writing.txt" ]]; then
-        TASK=$(cat "./tmp/${writer}_writing.txt")
-        printf "%-10s | ⏳ 執筆中: %s\n" "$writer" "$TASK"
-    elif [[ -f "./tmp/${writer}_done.txt" ]]; then
-        printf "%-10s | ✅ 完了\n" "$writer"
-    else
-        printf "%-10s | ⏸️  待機中\n" "$writer"
-    fi
-done
+    WRITERS=("writer1" "writer2" "writer3")
+    for writer in "${WRITERS[@]}"; do
+        if [[ -f "./tmp/${writer}_writing.txt" ]]; then
+            TASK=$(cat "./tmp/${writer}_writing.txt")
+            printf "%-10s | ⏳ 執筆中: %s\n" "$writer" "$TASK"
+        elif [[ -f "./tmp/${writer}_done.txt" ]]; then
+            printf "%-10s | ✅ 完了\n" "$writer"
+        else
+            printf "%-10s | ⏸️  待機中\n" "$writer"
+        fi
+    done
 
-echo ""
+    echo ""
+fi
 
 # 監視ログの最新エントリ
 if [ -f "./logs/watchdog/watchdog.log" ]; then

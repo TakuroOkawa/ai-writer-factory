@@ -148,6 +148,25 @@ H2: 方法1：診療後の声かけを仕組み化する
 
 読者が本当に実践できるか、という視点で見直しをお願いします。"
 
+## ステータス監視
+
+定期的にライターの状況を確認してください：
+
+### 状況確認
+./status-manager.sh show
+
+### 停滞チェック
+./status-manager.sh check
+
+### チェック開始時
+./status-manager.sh update [writer] checking "品質チェック実施中"
+
+### 修正指示時
+./status-manager.sh update [writer] revision "修正指示送信済み"
+
+### 最終承認時
+./status-manager.sh update [writer] done "品質チェック完了、承認済み"
+
 ## システム停滞時の対応
 【緊急対応】メッセージを受信したら：
 1. 各Writerの状況を確認

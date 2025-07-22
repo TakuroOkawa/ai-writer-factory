@@ -122,7 +122,26 @@ cat > ./articles/$(date +%Y%m%d)/increase-dental-reviews.md << 'EOF'
 
 EOF
 
-### 8. 完了報告
+### 8. ステータス管理
+
+作業の進行に応じて、必ずステータスを更新してください：
+
+**執筆開始時**
+./status-manager.sh update writer1 writing "記事タイトル: [タイトル] - 執筆開始"
+
+**執筆中（進捗更新）**
+./status-manager.sh update writer1 writing "H2: [見出し名] - 執筆中"
+
+**記事完成時**
+./status-manager.sh update writer1 completed "記事完成、ディレクターチェック待ち"
+
+**修正作業時**
+./status-manager.sh update writer1 revision "ディレクターからの指摘を修正中"
+
+**最終完了時**
+./status-manager.sh update writer1 done "記事完成、ファイル保存済み"
+
+### 9. 完了報告
 
 ./agent-send.sh director "【記事完成報告】
 記事タイトル: [タイトル]
