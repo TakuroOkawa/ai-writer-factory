@@ -42,10 +42,13 @@
 
 ### 3. ディレクターへの戦略共有
 
+# プロジェクト名を環境変数として設定
+PROJECT_NAME="[例：dental-google-reviews]"
+
 ./agent-send.sh director "あなたはdirectorです。
 
 【プロジェクト概要】
-プロジェクト名: [例：dental-google-reviews] ※記事保存用フォルダ名
+プロジェクト名: $PROJECT_NAME ※記事保存用フォルダ名
 目的: [例：歯科医院の新患獲得支援]
 ゴール: [例：読者が月5名以上の新患を獲得できるようになる]
 
@@ -55,7 +58,7 @@
 - 例：dental-google-reviews, orthodontic-patient-management, dental-sns-marketing
 
 【記事保存先】
-articles/$(date +%Y%m%d)_[プロジェクト名]/
+articles/$(date +%Y%m%d)_$PROJECT_NAME/
 例：articles/20250722_dental-google-reviews/
 
 【ターゲット読者】
@@ -136,7 +139,7 @@ articles/$(date +%Y%m%d)_[プロジェクト名]/
 - 内部リンク: [設計通り実装済み/要調整]
 
 ## ファイル保存場所
-[保存先パス]
+./articles/$(date +%Y%m%d)_${PROJECT_NAME}/
 
 人間への最終報告をお願いします。
 
@@ -154,11 +157,12 @@ tmux kill-session -t watchdog 2>/dev/null
 
 #### 記事一覧レポートの作成
 
-# レポート作成
-cat > ./articles/seo_project_report_$(date +%Y%m%d).md << 'EOF'
+# レポート作成（プロジェクト別フォルダに保存）
+cat > ./articles/$(date +%Y%m%d)_${PROJECT_NAME}/seo_project_report.md << 'EOF'
 # SEO記事プロジェクト完了レポート
 
 作成日: $(date '+%Y年%m月%d日')
+プロジェクト名: ${PROJECT_NAME}
 
 ## 📊 プロジェクト概要
 - **目的**: [設定したビジネスゴール]
@@ -192,8 +196,8 @@ cat > ./articles/seo_project_report_$(date +%Y%m%d).md << 'EOF'
 - [例：セミナー開催]
 
 ## 📁 成果物の所在
-- 記事ファイル: ./articles/$(date +%Y%m%d)/
-- 本レポート: ./articles/seo_project_report_$(date +%Y%m%d).md
+- 記事ファイル: ./articles/$(date +%Y%m%d)_${PROJECT_NAME}/
+- 本レポート: ./articles/$(date +%Y%m%d)_${PROJECT_NAME}/seo_project_report.md
 EOF
 
 #### 人間への最終報告
@@ -205,7 +209,7 @@ echo ""
 echo "✅ 全5記事の制作が完了しました"
 echo ""
 echo "📊 詳細レポート:"
-echo "   ./articles/seo_project_report_$(date +%Y%m%d).md"
+echo "   ./articles/$(date +%Y%m%d)_${PROJECT_NAME}/seo_project_report.md"
 echo ""
 echo "🚀 次のアクション:"
 echo "   1. レポートの確認"
