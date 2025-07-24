@@ -29,6 +29,12 @@ rm -f ./tmp/project_completed.flag 2>/dev/null || true
 
 log_success "✅ 既存セッションと完了ファイルを削除しました"
 
+# 自動切り替えスクリプトの権限設定
+if [ -f "./claude-auto-switch.sh" ]; then
+    chmod +x ./claude-auto-switch.sh
+    log_success "✅ 自動切り替えスクリプトの権限を設定しました"
+fi
+
 # セッション1: director + writer1〜3
 log_info "🧩 article_team セッションを構築中..."
 tmux new-session -d -s article_team -n "team" -c "$(pwd)"
@@ -49,12 +55,19 @@ for i in {0..3}; do
    tmux send-keys -t article_team:0.$i "export PS1='(\[\033[1;36m\]${AGENT_NAMES[$i]}\[\033[0m\]) \w \$ '" C-m
    tmux send-keys -t article_team:0.$i "echo '=== ${AGENT_NAMES[$i]} セッション開始 ==='" C-m
    
-   # Directorはopus、Writersはsonnet
+   # Directorはopus（自動切り替え付き）、Writersはsonnet
    if [ $i -eq 0 ]; then
-       # Director (opus)
+       # Director (opus with auto-switch)
+       log_info "🎯 Director: Opusで起動（自動切り替え機能付き）"
        tmux send-keys -t article_team:0.$i "claude --model opus --dangerously-skip-permissions" C-m
+       
+       # 自動切り替え監視をバックグラウンドで開始
+       sleep 2
+       ./claude-auto-switch.sh "article_team:0.0" "director" "opus" &
+       log_success "✅ Director自動切り替え監視開始"
    else
        # Writers (sonnet)
+       log_info "✍️  Writer$i: Sonnetで起動"
        tmux send-keys -t article_team:0.$i "claude --model sonnet --dangerously-skip-permissions" C-m
    fi
 done
@@ -68,6 +81,11 @@ tmux send-keys -t cmo "export PS1='(\[\033[1;35m\]CMO\[\033[0m\]) \w \$ '" C-m
 tmux send-keys -t cmo "echo '=== CMO セッション開始 ==='" C-m
 tmux send-keys -t cmo "claude --model opus --dangerously-skip-permissions" C-m
 
+# CMOの自動切り替え監視をバックグラウンドで開始
+sleep 2
+./claude-auto-switch.sh "cmo" "CMO" "opus" &
+log_success "✅ CMO自動切り替え監視開始"
+
 log_success "✅ CMOセッション作成完了"
 
 # 結果表示
@@ -78,13 +96,13 @@ echo ""
 
 echo "📋 ペイン構成:"
 echo "  article_team セッション:"
-echo "    Pane 0: director (Opus最新版)"
+echo "    Pane 0: director (Opus最新版 + 自動切り替え機能)"
 echo "    Pane 1: writer1 (Sonnet最新版)"
 echo "    Pane 2: writer2 (Sonnet最新版)"
 echo "    Pane 3: writer3 (Sonnet最新版)"
 echo ""
 echo "  cmo セッション:"
-echo "    Pane 0: CMO (Opus最新版)"
+echo "    Pane 0: CMO (Opus最新版 + 自動切り替え機能)"
 echo ""
 
 # 監視システムの起動
@@ -98,11 +116,10 @@ else
 fi
 
 echo ""
+log_info "🔄 自動切り替え機能について:"
+echo "  - Opusリミットに達すると自動的にSonnetに切り替わります"
+echo "  - 切り替えログは ./logs/claude_switch.log に記録されます"
+echo "  - 手動で切り替えログを確認: tail -f ./logs/claude_switch.log"
+echo ""
 
-log_success "🎉 環境構築完了！以下のコマンドで作業を開始できます："
-echo ""
-echo "📌 セッションに入る:"
-echo "  tmux attach -t cmo           # CMO"
-echo "  tmux attach -t article_team  # director + writers"
-echo "  tmux attach -t watchdog      # 監視システム"
-echo ""
+log_success "🎉 環境構築が完了しました！"

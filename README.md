@@ -30,8 +30,8 @@ chmod +x setup.sh
 
 成功すると、以下の tmux セッションが自動構成されます：
 
-- `cmo`：CMO（単独）
-- `article_team`：Director + Writer1〜3（各ペイン）
+- `cmo`：CMO（Opus + 自動切り替え機能）
+- `article_team`：Director（Opus + 自動切り替え機能）+ Writer1〜3（Sonnet）
 
 各ペインでは Claude CLI が自動起動します。
 
@@ -41,6 +41,18 @@ chmod +x setup.sh
 tmux attach -t cmo
 # または
 tmux attach -t article_team
+```
+
+### 4. 自動切り替え機能
+
+- **Opusリミット検出**: 5分ごとにエラーをチェック
+- **自動切り替え**: Opusリミットに達すると自動的にSonnetに切り替え
+- **ログ記録**: 切り替え履歴は `./logs/claude_switch.log` に記録
+- **継続作業**: 切り替え後も作業を継続可能
+
+```bash
+# 切り替えログの確認
+tail -f ./logs/claude_switch.log
 ```
 
 ---
