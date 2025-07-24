@@ -11,6 +11,9 @@ tmp/
 # Claude CLIメタ情報
 .claude/
 
+# 生成された記事（ローカルのみ管理）
+articles/
+
 # OS固有
 .DS_Store
 Thumbs.db
