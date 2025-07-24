@@ -115,6 +115,16 @@ else
    echo "⚠️  watchdog.sh が見つかりません"
 fi
 
+# スリープ防止システムの起動
+log_info "😴 スリープ防止システムを起動します..."
+if [ -f "./prevent-sleep.sh" ]; then
+   chmod +x ./prevent-sleep.sh
+   ./prevent-sleep.sh start &
+   log_success "✅ スリープ防止システムが起動しました"
+else
+   echo "⚠️  prevent-sleep.sh が見つかりません"
+fi
+
 echo ""
 log_info "🔄 自動切り替え機能について:"
 echo "  - Opusリミットに達すると自動的にSonnetに切り替わります"
