@@ -8,8 +8,8 @@ SEOに強い記事をチームで自動生成する、Claude Codeを活用した
 
 | エージェント | 役割 |
 |-------------|------|
-| 👩‍💼 CMO       | 市場戦略・全体方針の立案 |
-| 👨‍💼 Director  | 構成・指示・品質要件の整理 |
+| 👩‍💼 CMO       | 市場戦略・全体方針の立案・クエリ戦略・トピッククラスター設計 |
+| 👨‍💼 Director  | 構成・指示・品質要件の整理・記事構成設計 |
 | ✍️ Writer1〜3 | 記事の執筆と仕上げ |
 
 ## 🚀 セットアップ手順
@@ -109,6 +109,7 @@ tmux attach -t article_team
 - 30秒ごとに各ライターの進捗をチェック
 - 停滞を検出すると自動的に介入メッセージを送信
 - プロジェクト完了時に自動停止
+- 改善されたメッセージ送信機能により、より確実な介入が可能
 
 ### 監視ログの確認
 
@@ -144,7 +145,14 @@ tail -f logs/status_manager.log
 │   ├── writer*_progress.txt  # 進捗状況
 │   ├── writer*_last_update.txt # 最終更新時刻
 │   └── project_completed.flag # プロジェクト完了フラグ
-└── articles/                  # 生成された記事
+├── articles/                  # 生成された記事
+│   ├── 20250122/             # 日付別フォルダ（旧形式）
+│   ├── 20250721/             # 日付別フォルダ（旧形式）
+│   └── 20250722_dental-google-reviews/  # プロジェクト別フォルダ（新形式）
+│       ├── dental-google-reviews-strategy.md
+│       ├── dental-review-marketing.md
+│       └── seo_project_report.md
+└── workspace/                 # 作業用ディレクトリ
 ```
 
 ---
@@ -160,6 +168,64 @@ tail -f logs/status_manager.log
 7. プロジェクト完了フラグ作成でシステム停止
 
 これらは Claude Code のチャット機能を通じて**自動で実行されます**。
+
+---
+
+## 🎯 記事品質の特徴
+
+### 文章構成のバランス
+- **文章**: 理由・心理・事例・物語的説明
+- **箇条書き**: 手順・比較・チェックリスト・具体例
+- **表**: 数値データ・スケジュール・比較表
+
+### 信頼性の確保
+- 架空の成功事例・患者口コミは禁止
+- 客観的データ・理論的根拠を重視
+- 具体的な医院名は使用しない
+
+### 自然な表現
+- 文末の「です：」「になります：」を避ける
+- 読みやすく実践的な内容
+
+---
+
+## 💡 実際の使用例
+
+### プロジェクト開始
+
+```bash
+# 1. セットアップ
+./setup.sh
+
+# 2. 監視システム開始
+./watchdog.sh
+
+# 3. CMOにプロジェクト指示
+./agent-send.sh cmo "歯科医院のGoogle口コミ戦略について5記事作成してください。プロジェクト名はdental-google-reviewsです。"
+```
+
+### 進捗確認
+
+```bash
+# リアルタイム状況確認
+./project-status.sh
+
+# 詳細ステータス
+./status-manager.sh show
+
+# 停滞チェック
+./status-manager.sh check
+```
+
+### 結果確認
+
+```bash
+# 生成された記事の確認
+ls -la articles/$(date +%Y%m%d)_dental-google-reviews/
+
+# CMOレポートの確認
+cat articles/$(date +%Y%m%d)_dental-google-reviews/seo_project_report.md
+```
 
 ---
 
@@ -204,6 +270,23 @@ tmux kill-session -t watchdog 2>/dev/null
 ./status-manager.sh reset-writer writer1
 ```
 
+### メッセージが送信されない場合
+
+```bash
+# エージェントセッションの再起動
+tmux kill-session -t cmo 2>/dev/null
+tmux kill-session -t article_team 2>/dev/null
+./setup.sh
+```
+
+### 監視システムが検知しない場合
+
+```bash
+# 監視システムの再起動
+tmux kill-session -t watchdog 2>/dev/null
+./watchdog.sh
+```
+
 ---
 
 ## 📝 備考
@@ -212,3 +295,7 @@ tmux kill-session -t watchdog 2>/dev/null
 - ステータス管理システムにより、停滞の早期発見と適切な介入が可能
 - 監視システムにより、長時間の停滞を自動検出
 - `CLAUDE.md` に Claude Code の使い方補足あり
+- 記事はプロジェクト別フォルダ（`YYYYMMDD_project-name/`）に保存
+- CMOのレポートも各プロジェクトフォルダ内に保存される
+- プロジェクト名はCMOへの指示時に指定（例：`dental-google-reviews`）
+- 改善されたメッセージ送信機能により、より確実なエージェント間通信が可能
