@@ -76,6 +76,14 @@ send_message() {
 
     echo "📤 送信中: $target ← '$message'"
 
+    # CMOへの新しいプロジェクト指示の場合は完了フラグを削除
+    if [[ "$target" == "cmo" && "$message" == *"プロジェクト"* ]]; then
+        if [ -f "./tmp/project_completed.flag" ]; then
+            rm -f "./tmp/project_completed.flag"
+            echo "🔄 新しいプロジェクト開始を検知。完了フラグを削除しました。"
+        fi
+    fi
+
     # Claude Codeのプロンプトを一度クリア
     tmux send-keys -t "$target" C-c
     sleep 1

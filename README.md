@@ -110,6 +110,7 @@ tmux attach -t article_team
 - 停滞を検出すると自動的に介入メッセージを送信
 - プロジェクト完了時に自動停止
 - 改善されたメッセージ送信機能により、より確実な介入が可能
+- **自動再開機能**: プロジェクト完了後、新しいプロジェクト開始時に自動的に監視を再開
 
 ### 監視ログの確認
 
@@ -145,14 +146,7 @@ tail -f logs/status_manager.log
 │   ├── writer*_progress.txt  # 進捗状況
 │   ├── writer*_last_update.txt # 最終更新時刻
 │   └── project_completed.flag # プロジェクト完了フラグ
-├── articles/                  # 生成された記事
-│   ├── 20250122/             # 日付別フォルダ（旧形式）
-│   ├── 20250721/             # 日付別フォルダ（旧形式）
-│   └── 20250722_dental-google-reviews/  # プロジェクト別フォルダ（新形式）
-│       ├── dental-google-reviews-strategy.md
-│       ├── dental-review-marketing.md
-│       └── seo_project_report.md
-└── workspace/                 # 作業用ディレクトリ
+└── articles/                  # 生成された記事
 ```
 
 ---
@@ -197,12 +191,14 @@ tail -f logs/status_manager.log
 # 1. セットアップ
 ./setup.sh
 
-# 2. 監視システム開始
+# 2. 監視システム開始（初回のみ）
 ./watchdog.sh
 
 # 3. CMOにプロジェクト指示
 ./agent-send.sh cmo "歯科医院のGoogle口コミ戦略について5記事作成してください。プロジェクト名はdental-google-reviewsです。"
 ```
+
+**注意**: 監視システムは一度起動すれば、プロジェクト完了後も自動的に新しいプロジェクトを待機します。手動で再起動する必要はありません。
 
 ### 進捗確認
 
@@ -299,3 +295,4 @@ tmux kill-session -t watchdog 2>/dev/null
 - CMOのレポートも各プロジェクトフォルダ内に保存される
 - プロジェクト名はCMOへの指示時に指定（例：`dental-google-reviews`）
 - 改善されたメッセージ送信機能により、より確実なエージェント間通信が可能
+- **監視システムの自動再開**: プロジェクト完了後、新しいプロジェクト開始時に自動的に監視を再開（手動操作不要）

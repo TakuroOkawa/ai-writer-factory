@@ -23,11 +23,22 @@ log_watchdog() {
 
 # アクティビティをチェック
 check_activity() {
-    # プロジェクト完了フラグがあれば終了
+    # プロジェクト完了フラグがあれば一時停止（削除されるまで待機）
     if [ -f "./tmp/project_completed.flag" ]; then
-        log_watchdog "📢 プロジェクト完了を検知。監視を終了します。"
-        echo "✅ プロジェクトが完了したため、監視システムを終了します。"
-        exit 0
+        log_watchdog "📢 プロジェクト完了を検知。新しいプロジェクト開始を待機中..."
+        echo "✅ プロジェクトが完了しました。新しいプロジェクト開始を待機中..."
+        
+        # 完了フラグが削除されるまで待機（負荷軽減のため60秒間隔）
+        while [ -f "./tmp/project_completed.flag" ]; do
+            sleep 60  # 10秒 → 60秒に変更して負荷軽減
+        done
+        
+        log_watchdog "🔄 新しいプロジェクト開始を検知。監視を再開します。"
+        echo "🔄 新しいプロジェクトが開始されました。監視を再開します。"
+        
+        # 新しいプロジェクトの開始時刻を記録
+        START_TIME=$(date +%s)
+        return 0
     fi
     
    CURRENT_TIME=$(date +%s)
