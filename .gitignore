@@ -14,6 +14,12 @@ tmp/
 # 生成された記事（ローカルのみ管理）
 articles/
 
+# 作業用ファイル
+workspace/
+
+# 完了レポート
+logs/reports/
+
 # OS固有
 .DS_Store
 Thumbs.db
@@ -24,4 +30,3 @@ Thumbs.db
 *~
 .vscode/
 .idea/
-workspace/
