@@ -176,8 +176,10 @@ case "$1" in
     "check")
         if check_stalls; then
             echo "✅ すべてのライターが正常に進行中です"
+            exit 0
         else
             echo "❌ 停滞が検出されました"
+            exit 1
         fi
         ;;
     "reset")

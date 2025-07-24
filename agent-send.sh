@@ -68,6 +68,7 @@ log_send() {
     echo "[$timestamp] $agent: SENT - \"$message\"" >> logs/send_log.txt
 }
 
+
 # メッセージ送信
 send_message() {
     local target="$1"
@@ -77,11 +78,15 @@ send_message() {
 
     # Claude Codeのプロンプトを一度クリア
     tmux send-keys -t "$target" C-c
-    sleep 0.3
+    sleep 1
+
+    # 確実にクリアするために再度C-c
+    tmux send-keys -t "$target" C-c
+    sleep 0.5
 
     # メッセージ送信
     tmux send-keys -t "$target" "$message"
-    sleep 0.1
+    sleep 0.5
 
     # エンター押下
     tmux send-keys -t "$target" C-m

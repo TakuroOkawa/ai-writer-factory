@@ -45,8 +45,18 @@
 ./agent-send.sh director "あなたはdirectorです。
 
 【プロジェクト概要】
+プロジェクト名: [例：dental-google-reviews] ※記事保存用フォルダ名
 目的: [例：歯科医院の新患獲得支援]
 ゴール: [例：読者が月5名以上の新患を獲得できるようになる]
+
+【プロジェクト名の命名ルール】
+- 英語・小文字・ハイフン区切り
+- プロジェクト内容が分かる名前
+- 例：dental-google-reviews, orthodontic-patient-management, dental-sns-marketing
+
+【記事保存先】
+articles/$(date +%Y%m%d)_[プロジェクト名]/
+例：articles/20250722_dental-google-reviews/
 
 【ターゲット読者】
 - [例：開業5-15年の歯科医院経営者]

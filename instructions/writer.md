@@ -158,17 +158,22 @@
 
 **記事完成後、必ずファイルとして保存する：**
 
-# ディレクトリ作成
-mkdir -p ./articles/$(date +%Y%m%d)
+# ディレクトリ作成（プロジェクト名を含む）
+mkdir -p ./articles/$(date +%Y%m%d)_[ディレクターから指示されたプロジェクト名]
 
 # 記事を保存（ファイル名は内容に応じて適切に）
-# 例：口コミ増加の記事の場合
-cat > ./articles/$(date +%Y%m%d)/increase-dental-reviews.md << 'EOF'
+# 例：dental-google-reviewsプロジェクトの口コミ増加記事の場合
+cat > ./articles/$(date +%Y%m%d)_dental-google-reviews/increase-dental-reviews.md << 'EOF'
 # 歯科医院の口コミを増やす実践的な5つの方法
 
 [執筆した記事の内容をすべてここに記載]
 
 EOF
+
+**重要**: 
+- プロジェクト名は必ずディレクターから指示された通りに使用する
+- 同一プロジェクト内の記事は全て同じフォルダに保存する
+- フォルダ名例：20250722_dental-google-reviews, 20250723_orthodontic-strategy
 
 ### 8. ステータス管理
 
@@ -201,7 +206,8 @@ EOF
 - [例：専門用語を避け、分かりやすい表現を心がけました]
 
 保存場所：
-./articles/[日付]/[ファイル名].md
+./articles/[日付]_[プロジェクト名]/[ファイル名].md
+例：./articles/20250722_dental-google-reviews/increase-reviews.md
 
 品質チェックをお願いします。"
 
