@@ -57,8 +57,10 @@ check_activity() {
    
    # ステータス管理システムを使用して停滞チェック
    if [ -f "./status-manager.sh" ]; then
-       if ! ./status-manager.sh check >/dev/null 2>&1; then
+       check_result=$(./status-manager.sh check 2>&1)
+       if [ $? -ne 0 ]; then
            # 停滞が検出された場合
+           log_watchdog "停滞検出: $check_result"
            return 1
        fi
    else

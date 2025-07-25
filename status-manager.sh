@@ -85,6 +85,13 @@ show_status() {
 check_stalls() {
     local current_time=$(date +%s)
     local stalled_writers=()
+    local all_done=1
+    local project_completed=0
+    
+    # プロジェクト完了フラグの確認
+    if [ -f "./tmp/project_completed.flag" ]; then
+        project_completed=1
+    fi
     
     for writer in writer1 writer2 writer3; do
         if [ -f "./tmp/${writer}_status.txt" ] && [ -f "./tmp/${writer}_last_update.txt" ]; then
@@ -98,31 +105,55 @@ check_stalls() {
                     if [ $time_diff -gt 600 ]; then   # 10分
                         stalled_writers+=("$writer")
                     fi
+                    all_done=0
                     ;;
                 "completed")
                     if [ $time_diff -gt 180 ]; then   # 3分
                         stalled_writers+=("$writer")
                     fi
+                    all_done=0
                     ;;
                 "checking")
                     if [ $time_diff -gt 300 ]; then   # 5分
                         stalled_writers+=("$writer")
                     fi
+                    all_done=0
                     ;;
                 "revision")
                     if [ $time_diff -gt 300 ]; then   # 5分
                         stalled_writers+=("$writer")
                     fi
+                    all_done=0
+                    ;;
+                "done")
+                    # done状態でも長時間更新がない場合は停滞とみなす
+                    if [ $time_diff -gt 1800 ]; then   # 30分
+                        stalled_writers+=("$writer")
+                    fi
+                    ;;
+                *)
+                    all_done=0
                     ;;
             esac
+        else
+            all_done=0
         fi
     done
+    
+    # 全ライターがdone状態だがプロジェクトが完了していない場合
+    if [ $all_done -eq 1 ] && [ $project_completed -eq 0 ]; then
+        log_status "全ライター完了状態だがプロジェクト未完了 - Director/CMOの確認が必要"
+        echo "⚠️ 全ライターが完了状態ですが、プロジェクトが完了していません"
+        echo "   DirectorまたはCMOの確認が必要です"
+        return 1
+    fi
     
     if [ ${#stalled_writers[@]} -gt 0 ]; then
         log_status "停滞検出: ${stalled_writers[*]}"
         echo "⚠️ 停滞検出: ${stalled_writers[*]}"
         return 1
     fi
+    
     return 0
 }
 
