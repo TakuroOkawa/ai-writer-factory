@@ -73,6 +73,8 @@ log_send() {
 send_message() {
     local target="$1"
     local message="$2"
+    local max_retries=3
+    local retry_count=0
 
     echo "📤 送信中: $target ← '$message'"
 
@@ -84,21 +86,72 @@ send_message() {
         fi
     fi
 
-    # Claude Codeのプロンプトを一度クリア
-    tmux send-keys -t "$target" C-c
-    sleep 1
+    while [ $retry_count -lt $max_retries ]; do
+        # Claude Codeのプロンプトを一度クリア
+        tmux send-keys -t "$target" C-c
+        sleep 1
 
-    # 確実にクリアするために再度C-c
-    tmux send-keys -t "$target" C-c
-    sleep 0.5
+        # 確実にクリアするために再度C-c
+        tmux send-keys -t "$target" C-c
+        sleep 0.5
 
-    # メッセージ送信
-    tmux send-keys -t "$target" "$message"
-    sleep 0.5
+        # プロンプトが表示されるまで待機
+        sleep 2
 
-    # エンター押下
-    tmux send-keys -t "$target" C-m
-    sleep 0.5
+        # メッセージ送信（改行文字をエスケープ）
+        tmux send-keys -t "$target" "$message"
+        sleep 1
+
+        # エンター押下
+        tmux send-keys -t "$target" C-m
+        sleep 1
+
+        # 送信確認のため少し待機
+        sleep 2
+
+        # 送信確認（ペインの内容をチェック）
+        if check_message_sent "$target" "$message"; then
+            echo "✅ メッセージ送信確認済み"
+            return 0
+        else
+            retry_count=$((retry_count + 1))
+            echo "⚠️  送信確認失敗 (試行 $retry_count/$max_retries)"
+            if [ $retry_count -lt $max_retries ]; then
+                sleep 3
+            fi
+        fi
+    done
+
+    echo "❌ メッセージ送信失敗 (最大試行回数到達)"
+    return 1
+}
+
+# メッセージ送信確認
+check_message_sent() {
+    local target="$1"
+    local message="$2"
+    local check_count=0
+    local max_checks=5
+
+    while [ $check_count -lt $max_checks ]; do
+        # ペインの内容を取得
+        local pane_content=$(tmux capture-pane -t "$target" -p 2>/dev/null)
+        
+        # メッセージが表示されているかチェック
+        if echo "$pane_content" | grep -q "$message"; then
+            return 0
+        fi
+        
+        # プロンプトが表示されているかチェック
+        if echo "$pane_content" | grep -q ">"; then
+            return 0
+        fi
+        
+        check_count=$((check_count + 1))
+        sleep 1
+    done
+    
+    return 1
 }
 
 # ターゲット存在確認

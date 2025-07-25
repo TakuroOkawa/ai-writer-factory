@@ -43,6 +43,30 @@ start_sleep_prevention() {
                 break
             fi
             
+            # 全エージェントが完了状態かチェック
+            ALL_COMPLETED=1
+            if [ -f "./status-manager.sh" ]; then
+                # ライターの完了状態をチェック
+                for writer in writer1 writer2 writer3; do
+                    if [ -f "./tmp/${writer}_status.txt" ]; then
+                        status=$(cat "./tmp/${writer}_status.txt")
+                        if [ "$status" != "done" ]; then
+                            ALL_COMPLETED=0
+                            break
+                        fi
+                    else
+                        ALL_COMPLETED=0
+                        break
+                    fi
+                done
+                
+                # 全ライターが完了し、かつプロジェクト完了フラグがある場合
+                if [ $ALL_COMPLETED -eq 1 ] && [ -f "./tmp/project_completed.flag" ]; then
+                    log_sleep "🎉 全エージェントが完了状態です。スリープ防止を終了します。"
+                    break
+                fi
+            fi
+            
             # caffeinateプロセスが生きているかチェック
             if ! kill -0 $CAFFEINATE_PID 2>/dev/null; then
                 log_sleep "⚠️  caffeinateプロセスが終了しました。再起動します。"
@@ -52,18 +76,64 @@ start_sleep_prevention() {
                 log_sleep "✅ caffeinateプロセス再起動 (PID: $CAFFEINATE_PID)"
             fi
             
-            # ライターが作業中かチェック
+            # 全エージェント（ライター、ディレクター、CMO）の状態をチェック
             WORKERS_ACTIVE=0
-            for writer in writer1 writer2 writer3; do
-                if [ -f "./tmp/${writer}_writing.txt" ] || [ -f "./tmp/${writer}_completed.txt" ] || [ -f "./tmp/${writer}_checking.txt" ] || [ -f "./tmp/${writer}_revision.txt" ]; then
-                    WORKERS_ACTIVE=1
+            PROJECT_ACTIVE=0
+            AGENTS_ACTIVE=0
+            
+            # プロジェクトが開始されているかチェック（send_log.txtの存在）
+            if [ -f "./logs/send_log.txt" ]; then
+                PROJECT_ACTIVE=1
+            fi
+            
+            # tmuxセッションの存在をチェック
+            TMUX_SESSIONS=$(tmux list-sessions 2>/dev/null | grep -E "(article_team|cmo)" | wc -l)
+            if [ $TMUX_SESSIONS -gt 0 ]; then
+                AGENTS_ACTIVE=1
+            fi
+            
+            # ステータス管理システムが利用可能な場合
+            if [ -f "./status-manager.sh" ]; then
+                # 各ライターのステータスをチェック
+                for writer in writer1 writer2 writer3; do
+                    if [ -f "./tmp/${writer}_status.txt" ]; then
+                        status=$(cat "./tmp/${writer}_status.txt")
+                        case $status in
+                            "writing"|"completed"|"checking"|"revision")
+                                WORKERS_ACTIVE=1
+                                break
+                                ;;
+                        esac
+                    fi
+                done
+                
+                # プロジェクトが開始されているがライターが作業していない場合
+                if [ $PROJECT_ACTIVE -eq 1 ] && [ $WORKERS_ACTIVE -eq 0 ]; then
+                    log_sleep "⚠️  プロジェクト開始済みだがライターが作業していません"
+                    if [ $AGENTS_ACTIVE -eq 1 ]; then
+                        log_sleep "🔍 ディレクター/CMOが活動中。監視システムに復旧を任せます。スリープ防止を継続します。"
+                        # スリープ防止を継続（監視システムが復旧を試みる）
+                    else
+                        log_sleep "💤 エージェントが活動していません。スリープ防止を終了します。"
+                        break
+                    fi
+                elif [ $PROJECT_ACTIVE -eq 0 ]; then
+                    log_sleep "💤 プロジェクトが開始されていません。スリープ防止を終了します。"
                     break
                 fi
-            done
-            
-            if [ $WORKERS_ACTIVE -eq 0 ]; then
-                log_sleep "💤 ライターが作業していません。スリープ防止を終了します。"
-                break
+            else
+                # 従来の方法（後方互換性のため）
+                for writer in writer1 writer2 writer3; do
+                    if [ -f "./tmp/${writer}_writing.txt" ] || [ -f "./tmp/${writer}_completed.txt" ] || [ -f "./tmp/${writer}_checking.txt" ] || [ -f "./tmp/${writer}_revision.txt" ]; then
+                        WORKERS_ACTIVE=1
+                        break
+                    fi
+                done
+                
+                if [ $WORKERS_ACTIVE -eq 0 ] && [ $AGENTS_ACTIVE -eq 0 ]; then
+                    log_sleep "💤 ライターとエージェントが作業していません。スリープ防止を終了します。"
+                    break
+                fi
             fi
         done
         

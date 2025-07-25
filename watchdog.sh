@@ -229,12 +229,48 @@ Directorからの最終報告を待っているか、
        fi
    fi
    
-   # 3. 30秒待って反応を確認
+   # 3. 段階的な復旧手順
+   log_watchdog "🔄 段階的な復旧手順を開始します..."
+   
+   # ステップ1: エージェントの健康状態チェック
+   local agents_to_restart=()
+   
+   # Directorの健康状態チェック
+   if ! check_agent_health "director" "article_team:0.0"; then
+       agents_to_restart+=("director:article_team:0.0")
+   fi
+   
+   # Writerの健康状態チェック
+   for i in 1 2 3; do
+       if ! check_agent_health "writer$i" "article_team:0.$i"; then
+           agents_to_restart+=("writer$i:article_team:0.$i")
+       fi
+   done
+   
+   # CMOの健康状態チェック
+   if ! check_agent_health "cmo" "cmo:0.0"; then
+       agents_to_restart+=("cmo:cmo:0.0")
+   fi
+   
+   # ステップ2: 問題のあるエージェントを再起動
+   if [ ${#agents_to_restart[@]} -gt 0 ]; then
+       log_watchdog "🔄 問題のあるエージェントを再起動: ${agents_to_restart[*]}"
+       
+       for agent_info in "${agents_to_restart[@]}"; do
+           IFS=':' read -r agent target <<< "$agent_info"
+           restart_agent "$agent" "$target"
+       done
+       
+       # 再起動後の安定化待機
+       sleep 15
+   fi
+   
+   # ステップ3: 30秒待って反応を確認
    sleep 30
    
-   # 4. それでも動かない場合は、より強い介入
+   # ステップ4: それでも動かない場合は、より強い介入
    if ! check_activity; then
-       log_watchdog "❌ 通常の復旧失敗。強制的な再開を試みます。"
+       log_watchdog "❌ 自動復旧失敗。手動介入を促します。"
        
        # Directorに強制的な再割り当てを指示
        ./agent-send.sh director "【緊急対応】システム完全停滞
@@ -263,14 +299,128 @@ Directorからの最終報告を待っているか、
    fi
 }
 
+# エージェント監視強化
+check_agent_health() {
+    local agent="$1"
+    local target="$2"
+    local health_status=0
+    
+    # 1. tmuxセッションの存在確認
+    if ! tmux has-session -t "${target%%:*}" 2>/dev/null; then
+        log_watchdog "❌ $agent: tmuxセッションが存在しません"
+        return 1
+    fi
+    
+    # 2. プロセス状態確認
+    local pane_pid=$(tmux list-panes -t "$target" -F "#{pane_pid}" 2>/dev/null | head -1)
+    if [ -z "$pane_pid" ]; then
+        log_watchdog "❌ $agent: ペインPIDが取得できません"
+        return 1
+    fi
+    
+    # 3. Claudeプロセスの確認
+    local claude_processes=$(ps aux | grep claude | grep -v grep | wc -l)
+    if [ $claude_processes -eq 0 ]; then
+        log_watchdog "❌ $agent: Claudeプロセスが存在しません"
+        return 1
+    fi
+    
+    # 4. 応答性テスト
+    if ! test_agent_response "$target"; then
+        log_watchdog "❌ $agent: 応答テスト失敗"
+        return 1
+    fi
+    
+    log_watchdog "✅ $agent: 正常動作中"
+    return 0
+}
+
+# エージェント応答テスト
+test_agent_response() {
+    local target="$1"
+    local test_message="test_response_$(date +%s)"
+    
+    # テストメッセージ送信
+    tmux send-keys -t "$target" C-c
+    sleep 1
+    tmux send-keys -t "$target" "$test_message" C-m
+    sleep 3
+    
+    # 応答確認
+    local pane_content=$(tmux capture-pane -t "$target" -p 2>/dev/null)
+    if echo "$pane_content" | grep -q "$test_message"; then
+        return 0
+    fi
+    
+    return 1
+}
+
+# エージェント自動再起動
+restart_agent() {
+    local agent="$1"
+    local target="$2"
+    
+    log_watchdog "🔄 $agent を再起動します..."
+    
+    case "$agent" in
+        "director")
+            tmux send-keys -t "$target" C-c
+            sleep 2
+            tmux send-keys -t "$target" "claude --model opus --dangerously-skip-permissions" C-m
+            ;;
+        "writer1"|"writer2"|"writer3")
+            tmux send-keys -t "$target" C-c
+            sleep 2
+            tmux send-keys -t "$target" "claude --model sonnet --dangerously-skip-permissions" C-m
+            ;;
+        "cmo")
+            tmux send-keys -t "$target" C-c
+            sleep 2
+            tmux send-keys -t "$target" "claude --model opus --dangerously-skip-permissions" C-m
+            ;;
+    esac
+    
+    # 再起動後の安定化待機
+    sleep 10
+    
+    # 再起動確認
+    if check_agent_health "$agent" "$target"; then
+        log_watchdog "✅ $agent 再起動成功"
+        return 0
+    else
+        log_watchdog "❌ $agent 再起動失敗"
+        return 1
+    fi
+}
+
 # メインループ
 log_watchdog "🚀 監視システムを開始します"
 log_watchdog "起動後10分間は猶予期間です"
+log_watchdog "自動復旧機能: 有効"
+log_watchdog "エージェント監視: 有効"
+log_watchdog "メッセージ送信確認: 有効"
 echo "監視中... (Ctrl+C で終了)"
 
 while true; do
+   # 定期的なエージェント健康状態チェック
+   if [ $((SECONDS % 300)) -eq 0 ]; then  # 5分ごと
+       log_watchdog "🔍 定期健康状態チェックを実行中..."
+       
+       # Directorの健康状態チェック
+       if ! check_agent_health "director" "article_team:0.0"; then
+           log_watchdog "⚠️  Directorの健康状態に問題を検知"
+       fi
+       
+       # CMOの健康状態チェック
+       if ! check_agent_health "cmo" "cmo:0.0"; then
+           log_watchdog "⚠️  CMOの健康状態に問題を検知"
+       fi
+   fi
+   
+   # 通常の活動チェック
    if ! check_activity; then
        handle_stall
    fi
+   
    sleep $CHECK_INTERVAL
 done
