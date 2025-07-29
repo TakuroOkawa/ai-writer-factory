@@ -3,8 +3,8 @@
 # 🔍 AI記事生成システム監視スクリプト
 
 # 設定
-CHECK_INTERVAL=30  # 30秒ごとにチェック
-TIMEOUT_THRESHOLD=300  # 5分間動きがなければタイムアウト
+CHECK_INTERVAL=120  # 2分ごとにチェック（30秒 → 2分に変更）
+TIMEOUT_THRESHOLD=600  # 10分間動きがなければタイムアウト（5分 → 10分に変更）
 LOG_DIR="./logs/watchdog"
 mkdir -p "$LOG_DIR"
 
@@ -23,15 +23,15 @@ log_watchdog() {
 
 # アクティビティをチェック
 check_activity() {
-    # プロジェクト完了フラグがあれば一時停止（削除されるまで待機）
-    if [ -f "./tmp/project_completed.flag" ]; then
-        log_watchdog "📢 プロジェクト完了を検知。新しいプロジェクト開始を待機中..."
-        echo "✅ プロジェクトが完了しました。新しいプロジェクト開始を待機中..."
-        
-        # 完了フラグが削除されるまで待機（負荷軽減のため60秒間隔）
-        while [ -f "./tmp/project_completed.flag" ]; do
-            sleep 60  # 10秒 → 60秒に変更して負荷軽減
-        done
+           # プロジェクト完了フラグがあれば一時停止（削除されるまで待機）
+       if [ -f "./tmp/project_completed.flag" ]; then
+           log_watchdog "📢 プロジェクト完了を検知。新しいプロジェクト開始を待機中..."
+           echo "✅ プロジェクトが完了しました。新しいプロジェクト開始を待機中..."
+           
+           # 完了フラグが削除されるまで待機（負荷軽減のため120秒間隔）
+           while [ -f "./tmp/project_completed.flag" ]; do
+               sleep 120  # 60秒 → 120秒に変更して負荷軽減
+           done
         
         log_watchdog "🔄 新しいプロジェクト開始を検知。監視を再開します。"
         echo "🔄 新しいプロジェクトが開始されました。監視を再開します。"
@@ -120,6 +120,140 @@ handle_stall() {
                esac
            fi
        done
+       
+       # 個別ライター停滞の検知と介入
+       check_result=$(./status-manager.sh check 2>&1)
+       if [ $? -ne 0 ]; then
+           # 停滞が検出された場合、個別に対応
+           log_watchdog "個別ライター停滞検出: $check_result"
+           
+           # 停滞しているライターを特定
+           for writer in writer1 writer2 writer3; do
+               if [ -f "./tmp/${writer}_status.txt" ] && [ -f "./tmp/${writer}_last_update.txt" ]; then
+                   status=$(cat "./tmp/${writer}_status.txt")
+                   last_update=$(cat "./tmp/${writer}_last_update.txt")
+                   current_time=$(date +%s)
+                   time_diff=$((current_time - last_update))
+                   
+                   # 停滞判定
+                   local is_stalled=0
+                   case $status in
+                       "writing")
+                           if [ $time_diff -gt 600 ]; then   # 10分
+                               is_stalled=1
+                           fi
+                           ;;
+                       "completed")
+                           if [ $time_diff -gt 600 ]; then   # 10分（3分 → 10分に変更）
+                               is_stalled=1
+                           fi
+                           ;;
+                       "checking")
+                           if [ $time_diff -gt 600 ]; then   # 10分（5分 → 10分に変更）
+                               is_stalled=1
+                           fi
+                           ;;
+                       "revision")
+                           if [ $time_diff -gt 600 ]; then   # 10分（5分 → 10分に変更）
+                               is_stalled=1
+                           fi
+                           ;;
+                   esac
+                   
+                   # 停滞しているライターに直接介入
+                   if [ $is_stalled -eq 1 ]; then
+                       log_watchdog "🔄 $writer に直接介入します（$time_diff秒間更新なし）"
+                       
+                       case $status in
+                           "writing")
+                               ./agent-send.sh "$writer" "【緊急】執筆進捗確認
+
+$time_diff秒間更新がありません。
+現在の執筆状況を30秒以内に報告してください。
+
+もし行き詰まっている場合は：
+1. 現在書いている部分を一旦保存
+2. Directorに相談
+3. 作業を継続
+
+30秒以内に応答がない場合は、作業を中断していると判断します。" 2>/dev/null
+                               ;;
+                           "completed")
+                               ./agent-send.sh "$writer" "【緊急】完了確認
+
+$time_diff秒間更新がありません。
+記事の完了報告を30秒以内に実行してください。
+
+完了している場合は：
+1. 記事の最終確認
+2. Directorへの完了報告
+3. ステータス更新
+
+30秒以内に応答がない場合は、完了していないと判断します。" 2>/dev/null
+                               ;;
+                           "checking"|"revision")
+                               ./agent-send.sh "$writer" "【緊急】作業確認
+
+$time_diff秒間更新がありません。
+現在の作業状況を30秒以内に報告してください。
+
+作業中の場合：
+1. 現在の作業内容を報告
+2. 完了予定時刻を報告
+3. 問題があれば相談
+
+30秒以内に応答がない場合は、作業を中断していると判断します。" 2>/dev/null
+                               ;;
+                       esac
+                       
+                       sleep 2
+                   fi
+               fi
+           done
+           
+           # Directorにも個別停滞の報告
+           if [ $WRITERS_COMPLETED -gt 0 ] || [ $WRITERS_CHECKING -gt 0 ]; then
+               log_watchdog "完了した記事があります。Directorに品質チェックを促します。"
+               
+               # Directorの応答確認
+               DIRECTOR_RESPONSE=0
+               for attempt in 1 2 3; do
+                   ./agent-send.sh director "【システム通知】品質チェック遅延
+
+完了した記事の品質チェックが滞っているようです。
+以下を確認してください：
+
+1. Writerからの完了報告を見逃していないか
+2. 品質チェックで問題があったか
+3. CMOへの報告が必要か
+
+すぐに以下のアクションを取ってください：
+- 完了記事があれば品質チェック実施
+- 問題があればWriterにフィードバック
+- すべて完了していればCMOに報告" 2>/dev/null
+                   
+                   if [ $? -eq 0 ]; then
+                       DIRECTOR_RESPONSE=1
+                       break
+                   fi
+                   
+                   log_watchdog "Directorへのメッセージ送信失敗（試行 $attempt/3）"
+                   sleep 5
+               done
+               
+               # Directorが応答しない場合は再起動を試行
+               if [ $DIRECTOR_RESPONSE -eq 0 ]; then
+                   log_watchdog "⚠️  Directorが応答しません。再起動を試行します。"
+                   
+                   if [ -f "./restart-director.sh" ]; then
+                       ./restart-director.sh &
+                       log_watchdog "✅ ディレクター再起動スクリプトを実行しました"
+                   else
+                       log_watchdog "❌ restart-director.sh が見つかりません"
+                   fi
+               fi
+           fi
+       fi
        
        if [ $WRITERS_DONE -eq 0 ] && [ $WRITERS_COMPLETED -eq 0 ]; then
            # まだ誰も完了していない → Writerに催促
@@ -405,7 +539,7 @@ echo "監視中... (Ctrl+C で終了)"
 
 while true; do
    # 定期的なエージェント健康状態チェック
-   if [ $((SECONDS % 300)) -eq 0 ]; then  # 5分ごと
+   if [ $((SECONDS % 600)) -eq 0 ]; then  # 10分ごと（5分 → 10分に変更）
        log_watchdog "🔍 定期健康状態チェックを実行中..."
        
        # Directorの健康状態チェック

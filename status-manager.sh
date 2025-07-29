@@ -108,19 +108,19 @@ check_stalls() {
                     all_done=0
                     ;;
                 "completed")
-                    if [ $time_diff -gt 180 ]; then   # 3分
+                    if [ $time_diff -gt 600 ]; then   # 10分（3分 → 10分に変更）
                         stalled_writers+=("$writer")
                     fi
                     all_done=0
                     ;;
                 "checking")
-                    if [ $time_diff -gt 300 ]; then   # 5分
+                    if [ $time_diff -gt 600 ]; then   # 10分（5分 → 10分に変更）
                         stalled_writers+=("$writer")
                     fi
                     all_done=0
                     ;;
                 "revision")
-                    if [ $time_diff -gt 300 ]; then   # 5分
+                    if [ $time_diff -gt 600 ]; then   # 10分（5分 → 10分に変更）
                         stalled_writers+=("$writer")
                     fi
                     all_done=0
